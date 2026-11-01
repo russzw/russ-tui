@@ -155,8 +155,9 @@ cargo run --release
 ```
 
 Keep the repository root as the working directory when using the bundled
-catalog, or use the installed launcher, which changes to the install directory
-first.
+catalog. The app also falls back to the copy of `data/movies.json` beside the
+executable, so an installed build works when launched from `PATH` in another
+directory.
 
 ### Linux and macOS
 

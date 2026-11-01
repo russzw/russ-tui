@@ -6,6 +6,7 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 mod app;
@@ -171,7 +172,8 @@ async fn load_catalog(app: &mut App) {
     }
 
     // Fall back to the bundled sample catalog.
-    match app.catalog.load_from_file("data/movies.json").await {
+    let bundled = bundled_catalog_path();
+    match app.catalog.load_from_file(&bundled).await {
         Ok(()) => {
             reset_catalog_view(app);
             if let Some(message) = error {
@@ -180,8 +182,40 @@ async fn load_catalog(app: &mut App) {
                 app.toast = None;
             }
         }
-        Err(err) => app.show_toast(format!("Failed to load bundled catalog: {err:#}")),
+        Err(err) => app.show_toast(format!(
+            "Failed to load bundled catalog at {}: {err:#}",
+            bundled.display()
+        )),
     }
+}
+
+/// Locate the bundled sample catalog.
+///
+/// The working directory is preferred so a source checkout can override the
+/// file. Installed builds fall back to the copy beside the executable, which
+/// also makes `russ-tui.exe` work when it is launched from `PATH` in another
+/// directory.
+fn bundled_catalog_path() -> PathBuf {
+    let local = PathBuf::from("data/movies.json");
+    match std::env::current_exe() {
+        Ok(executable) => find_bundled_catalog(&local, &executable),
+        Err(_) => local,
+    }
+}
+
+fn find_bundled_catalog(local: &Path, executable: &Path) -> PathBuf {
+    if local.is_file() {
+        return local.to_path_buf();
+    }
+
+    if let Some(directory) = executable.parent() {
+        let adjacent = directory.join("data").join("movies.json");
+        if adjacent.is_file() {
+            return adjacent;
+        }
+    }
+
+    local.to_path_buf()
 }
 
 /// Reset search and selection after the catalog contents change.
@@ -189,4 +223,32 @@ fn reset_catalog_view(app: &mut App) {
     app.catalog.clear_search();
     app.search_input.clear();
     app.selected = 0;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_bundled_catalog;
+    use std::fs;
+
+    #[test]
+    fn bundled_catalog_prefers_cwd_then_executable_directory() {
+        let root =
+            std::env::temp_dir().join(format!("russ-tui-catalog-test-{}", std::process::id()));
+        let local = root.join("cwd").join("data").join("movies.json");
+        let executable = root.join("install").join("russ-tui.exe");
+        let adjacent = root.join("install").join("data").join("movies.json");
+
+        fs::create_dir_all(local.parent().expect("local parent")).expect("create cwd dir");
+        fs::create_dir_all(adjacent.parent().expect("adjacent parent"))
+            .expect("create install dir");
+        fs::write(&local, "{}").expect("write local catalog");
+        fs::write(&adjacent, "{}").expect("write adjacent catalog");
+
+        assert_eq!(find_bundled_catalog(&local, &executable), local);
+
+        fs::remove_file(&local).expect("remove local catalog");
+        assert_eq!(find_bundled_catalog(&local, &executable), adjacent);
+
+        fs::remove_dir_all(root).expect("clean up temp dirs");
+    }
 }

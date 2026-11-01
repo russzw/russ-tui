@@ -127,8 +127,9 @@ cargo run --release
 ```
 
 Keep the repository root as the working directory when using the bundled
-catalog. The installed Windows build stores its copy of the catalog beside the
-executable and its launcher changes into that directory first.
+catalog. The installed Windows build stores its copy beside the executable and
+its launcher changes into that directory first. The app also checks beside the
+executable when `data/movies.json` is not found in the working directory.
 
 ### Linux and macOS
 
@@ -335,8 +336,9 @@ order:
 
 ### Bundled sample
 
-Loads `data/movies.json` relative to the working directory. The installed app
-ships a copy at `%LOCALAPPDATA%\russ-tui\data\movies.json`.
+Loads `data/movies.json` from the working directory, falling back to the copy
+beside the executable. The installed app ships a copy at
+`%LOCALAPPDATA%\russ-tui\data\movies.json`.
 
 The sample catalog is a demonstration. Some entries point to public sample
 clips and some intentionally have no stream. It is not a piracy catalog and is
@@ -840,9 +842,9 @@ Run it from a terminal to see the error:
 powershell -ExecutionPolicy Bypass -File .\run.ps1 -NoBuild
 ```
 
-A common cause is starting the executable from the wrong working directory when
-using the bundled catalog. Use the installed launcher or `run.ps1`, which change
-to the correct directory first.
+If the bundled catalog is missing, the toast reports the path it tried. Reinstall
+the app or confirm that `data/movies.json` exists in the working directory or
+beside the executable.
 
 ---
 
