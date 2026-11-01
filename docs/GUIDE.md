@@ -182,7 +182,7 @@ quits from Browse. While typing in a text field, `q` is just the letter `q`.
 | --- | --- |
 | `Up` / `Down` | Move the selection. |
 | `j` / `k` | Move the selection (vim-style). |
-| `/` | Enter search mode. |
+| `/` | Enter search mode. The catalog filters as you type. |
 | `Enter` | Play the selected title. |
 | `b` | Add or remove the selected title from bookmarks. |
 | `l` | Open Library. |
@@ -200,14 +200,16 @@ titles show a heart.
 
 | Key | Action |
 | --- | --- |
-| Printable characters | Append to the search query. This includes `q` and `?`. |
-| `Backspace` | Delete the last character. |
+| Printable characters | Append to the search query. The list filters **live** as you type. This includes `q` and `?`. |
+| `Backspace` | Delete the last character and re-filter immediately. |
 | `Enter` | Apply the filter and return to Browse. |
 | `Esc` | Cancel search, clear the query, and return to Browse. |
 
-Search is case-insensitive and matches the title or any genre. Press `Esc` once
-to leave search, then `q` to quit if needed. Changing the catalog source reloads
-the catalog and clears the current search.
+Search is case-insensitive and matches the title, any genre, the overview, or
+the release year. The header shows the live query and the number of matching
+titles, and the Catalog panel shows the number of visible items. Press `Esc`
+once to leave search, then `q` to quit if needed. Changing the catalog source
+reloads the catalog and clears the current search.
 
 ### Playback
 
@@ -825,8 +827,10 @@ stream.
 
 ### Search finds nothing
 
-Search matches titles and genres, not overview text. Press `Enter` to apply the
-query and `Esc` to clear it. Changing the catalog source also clears the search.
+Search matches titles, genres, overviews, and years (case-insensitive). The
+header shows the live match count while you type, and the Catalog panel shows
+how many items are visible. Press `Enter` to keep the filter, or `Esc` to
+clear it. Changing the catalog source also clears the search.
 
 ### The terminal display looks wrong
 

@@ -44,7 +44,16 @@ fn browse_ui(f: &mut Frame, app: &mut App) {
 
     // Header: title + search
     let header = match app.mode {
-        AppMode::Searching => format!("russ-tui  [/{}]", app.search_input),
+        AppMode::Searching => format!(
+            "russ-tui — search: {}_   ({} shown)",
+            app.search_input,
+            app.visible_len()
+        ),
+        _ if !app.catalog.search_query.is_empty() => format!(
+            "russ-tui — {}   (filter: {})",
+            app.storage.catalog_source.label(),
+            app.catalog.search_query
+        ),
         _ => format!("russ-tui — {}", app.storage.catalog_source.label()),
     };
     let title =
@@ -75,15 +84,26 @@ fn browse_ui(f: &mut Frame, app: &mut App) {
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Catalog"))
-        .highlight_style(
-            Style::default()
-                .bg(Color::Blue)
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+    let list = if items.is_empty() && app.mode == AppMode::Searching {
+        List::new(vec![ListItem::new(format!(
+            "No matches for \"{}\"",
+            app.search_input
+        ))])
+    } else {
+        List::new(items)
+    }
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!("Catalog ({})", filtered.len())),
+    )
+    .highlight_style(
+        Style::default()
+            .bg(Color::Blue)
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+    )
+    .highlight_symbol("▶ ");
 
     f.render_stateful_widget(list, main_chunks[0], &mut app.list_state);
 
@@ -117,26 +137,39 @@ fn browse_ui(f: &mut Frame, app: &mut App) {
     }
 
     // Footer: help
-    let help_items = vec![
-        Span::styled("↑/↓ ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("navigate   "),
-        Span::styled("/ ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("search   "),
-        Span::styled("enter ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("play   "),
-        Span::styled("b ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("bookmark   "),
-        Span::styled("l ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("library   "),
-        Span::styled("s ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("settings   "),
-        Span::styled("p ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("providers   "),
-        Span::styled("? ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("help   "),
-        Span::styled("q ", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw("quit"),
-    ];
+    let help_items = if app.mode == AppMode::Searching {
+        vec![
+            Span::styled("type ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("filter live   "),
+            Span::styled("backspace ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("delete   "),
+            Span::styled("enter ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("apply   "),
+            Span::styled("esc ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("cancel"),
+        ]
+    } else {
+        vec![
+            Span::styled("↑/↓ ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("navigate   "),
+            Span::styled("/ ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("search   "),
+            Span::styled("enter ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("play   "),
+            Span::styled("b ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("bookmark   "),
+            Span::styled("l ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("library   "),
+            Span::styled("s ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("settings   "),
+            Span::styled("p ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("providers   "),
+            Span::styled("? ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("help   "),
+            Span::styled("q ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw("quit"),
+        ]
+    };
     let help =
         Paragraph::new(vec![Line::from(help_items)]).block(Block::default().borders(Borders::ALL));
     f.render_widget(help, chunks[2]);
@@ -827,7 +860,7 @@ fn help_overlay(f: &mut Frame) {
         Line::from(""),
         section("Browse"),
         shortcut("↑/↓, j/k", "navigate"),
-        shortcut("/", "search"),
+        shortcut("/", "search (filters live)"),
         shortcut("Enter", "play selected"),
         shortcut("b", "toggle bookmark"),
         shortcut("l", "library"),
@@ -953,6 +986,31 @@ mod tests {
 
         let text = rendered_text(&mut app, 100, 30);
         assert!(text.contains("Hello toast"));
+    }
+
+    #[test]
+    fn search_prompt_shows_query_and_live_result_count() {
+        let mut app = App::new();
+        app.catalog.items = vec![crate::media::MediaItem {
+            id: "1".to_string(),
+            title: "The Matrix".to_string(),
+            year: Some(1999),
+            rating: None,
+            genres: vec!["Action".to_string()],
+            overview: "A hacker discovers reality.".to_string(),
+            poster_url: None,
+            stream_url: None,
+            provider: None,
+        }];
+
+        app.handle_key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
+
+        let text = rendered_text(&mut app, 100, 30);
+        assert!(text.contains("search: ma"));
+        assert!(text.contains("1 shown"));
+        assert!(text.contains("filter live"));
     }
 
     #[test]

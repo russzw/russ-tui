@@ -182,7 +182,7 @@ Press `?` inside the app for the shortcut overlay. The full manual is in
 | Key | Action |
 | --- | --- |
 | `Up` / `Down`, `j` / `k` | Navigate |
-| `/` | Search titles and genres |
+| `/` | Search titles, genres, overviews, and years (filters live) |
 | `Enter` | Play selected |
 | `b` | Toggle bookmark |
 | `l` | Library |

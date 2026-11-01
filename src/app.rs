@@ -152,6 +152,16 @@ impl App {
         }
     }
 
+    /// Apply the current search query to the catalog.
+    ///
+    /// Called on every keystroke so the list filters live while typing, and
+    /// once more when the query is confirmed with `Enter`.
+    fn apply_search_filter(&mut self) {
+        self.catalog.set_search(self.search_input.clone());
+        self.selected = 0;
+        self.clamp_selection();
+    }
+
     /// Show a transient toast message (auto-cleared after 4 s by the main loop).
     pub fn show_toast(&mut self, msg: impl Into<String>) {
         self.toast = Some((msg.into(), std::time::Instant::now()));
@@ -427,6 +437,10 @@ impl App {
             (AppMode::Browsing, KeyCode::Char('/')) => {
                 self.mode = AppMode::Searching;
                 self.search_input.clear();
+                // Start from an unfiltered list so the new query is applied live.
+                self.catalog.clear_search();
+                self.selected = 0;
+                self.clamp_selection();
             }
 
             // Play selected item
@@ -741,16 +755,16 @@ impl App {
 
             // Search input
             (AppMode::Searching, KeyCode::Enter) => {
-                self.catalog.set_search(self.search_input.clone());
-                self.selected = 0;
-                self.clamp_selection();
+                self.apply_search_filter();
                 self.mode = AppMode::Browsing;
             }
             (AppMode::Searching, KeyCode::Backspace) => {
                 self.search_input.pop();
+                self.apply_search_filter();
             }
             (AppMode::Searching, KeyCode::Char(c)) => {
                 self.search_input.push(c);
+                self.apply_search_filter();
             }
 
             // Playback controls
@@ -803,5 +817,84 @@ impl App {
         if let Some(player) = &self.playback {
             self.playback_status = player.status_sync().unwrap_or_default();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    fn media(id: &str, title: &str, genres: &[&str]) -> MediaItem {
+        MediaItem {
+            id: id.to_string(),
+            title: title.to_string(),
+            year: None,
+            rating: None,
+            genres: genres.iter().map(|g| g.to_string()).collect(),
+            overview: String::new(),
+            poster_url: None,
+            stream_url: None,
+            provider: None,
+        }
+    }
+
+    fn press(app: &mut App, code: KeyCode) {
+        app.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
+    }
+
+    fn type_text(app: &mut App, text: &str) {
+        for character in text.chars() {
+            press(app, KeyCode::Char(character));
+        }
+    }
+
+    #[test]
+    fn search_applies_the_query_when_enter_is_pressed() {
+        let mut app = App::new();
+        app.catalog.items = vec![
+            media("1", "Inception", &["Sci-Fi"]),
+            media("2", "The Matrix", &["Sci-Fi"]),
+        ];
+
+        press(&mut app, KeyCode::Char('/'));
+        type_text(&mut app, "matrix");
+        assert_eq!(app.mode, AppMode::Searching);
+        assert_eq!(app.search_input, "matrix");
+
+        press(&mut app, KeyCode::Enter);
+        assert_eq!(app.mode, AppMode::Browsing);
+        assert_eq!(app.catalog.search_query, "matrix");
+        assert_eq!(app.visible_len(), 1);
+    }
+
+    #[test]
+    fn search_filters_while_typing() {
+        let mut app = App::new();
+        app.catalog.items = vec![
+            media("1", "Inception", &["Sci-Fi"]),
+            media("2", "The Matrix", &["Sci-Fi"]),
+        ];
+
+        press(&mut app, KeyCode::Char('/'));
+        type_text(&mut app, "matrix");
+
+        assert_eq!(app.catalog.search_query, "matrix");
+        assert_eq!(app.visible_len(), 1);
+    }
+
+    #[test]
+    fn escape_cancels_the_search_query() {
+        let mut app = App::new();
+        app.catalog.items = vec![media("1", "Inception", &["Sci-Fi"])];
+
+        press(&mut app, KeyCode::Char('/'));
+        type_text(&mut app, "inception");
+        press(&mut app, KeyCode::Esc);
+
+        assert_eq!(app.mode, AppMode::Browsing);
+        assert!(app.search_input.is_empty());
+        assert!(app.catalog.search_query.is_empty());
+        assert_eq!(app.visible_len(), 1);
     }
 }

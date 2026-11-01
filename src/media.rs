@@ -47,6 +47,9 @@ impl Catalog {
     }
 
     /// Returns items matching the current search query (all items when empty).
+    ///
+    /// The query is matched case-insensitively against the title, genres,
+    /// overview, and release year.
     pub fn filtered(&self) -> Vec<&MediaItem> {
         if self.search_query.is_empty() {
             return self.items.iter().collect();
@@ -58,6 +61,8 @@ impl Catalog {
             .filter(|item| {
                 item.title.to_lowercase().contains(&q)
                     || item.genres.iter().any(|g| g.to_lowercase().contains(&q))
+                    || item.overview.to_lowercase().contains(&q)
+                    || item.year.is_some_and(|year| year.to_string().contains(&q))
             })
             .collect()
     }
@@ -95,5 +100,55 @@ impl Catalog {
         .await;
         self.loading = false;
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item(id: &str, title: &str, year: u16, genres: &[&str], overview: &str) -> MediaItem {
+        MediaItem {
+            id: id.to_string(),
+            title: title.to_string(),
+            year: Some(year),
+            rating: None,
+            genres: genres.iter().map(|g| g.to_string()).collect(),
+            overview: overview.to_string(),
+            poster_url: None,
+            stream_url: None,
+            provider: None,
+        }
+    }
+
+    fn catalog() -> Catalog {
+        let mut catalog = Catalog::new();
+        catalog.items = vec![
+            item("1", "Inception", 2010, &["Sci-Fi"], "A dream heist."),
+            item(
+                "2",
+                "The Matrix",
+                1999,
+                &["Action"],
+                "A hacker discovers reality.",
+            ),
+        ];
+        catalog
+    }
+
+    #[test]
+    fn matches_title_genre_overview_and_year() {
+        let mut catalog = catalog();
+
+        for query in ["matrix", "action", "hacker", "1999", "INCEPTION"] {
+            catalog.set_search(query.to_string());
+            assert_eq!(catalog.filtered().len(), 1, "query: {query}");
+        }
+
+        catalog.set_search("nothing".to_string());
+        assert!(catalog.filtered().is_empty());
+
+        catalog.clear_search();
+        assert_eq!(catalog.filtered().len(), 2);
     }
 }
